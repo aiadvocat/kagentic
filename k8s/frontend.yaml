@@ -4,12 +4,13 @@ metadata:
   name: frontend
   namespace: kagentic
 spec:
+  type: NodePort  # Changed from LoadBalancer
   ports:
     - port: 8501
       targetPort: 8501
+      nodePort: 30501  # Fixed nodePort for predictable access
   selector:
     app: frontend
-  type: LoadBalancer  # This makes it accessible from outside the cluster
 ---
 apiVersion: apps/v1
 kind: Deployment
