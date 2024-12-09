@@ -1,10 +1,12 @@
-FROM python:3.9-slim
+FROM kagentic-base:latest
 
-WORKDIR /app
-
-COPY requirements.txt .
+# Copy requirements first
+COPY ai-agent/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+# Copy service code
+COPY ai-agent/ /app/ai-agent/
 
+WORKDIR /app/ai-agent
+ENV PYTHONPATH=/app
 CMD ["python", "app.py"] 

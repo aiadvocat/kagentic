@@ -51,6 +51,9 @@ The system consists of the following components running in the Kubernetes namesp
 4. Build Docker images:
     ```bash
     chmod +x build.sh
+    # Optionally set your Docker ID and version
+    export DOCKER_ID=yourdockerid
+    export VERSION_TAG=0.1.0
     ./build.sh
     ```
 
@@ -64,13 +67,7 @@ The system consists of the following components running in the Kubernetes namesp
     ```
 
 6. Access the application:
-    ```bash
-    kubectl get svc frontend -n kagentic
-    ```
-    Access the UI using the LoadBalancer IP/Port or use port-forwarding:
-    ```bash
-    kubectl port-forward svc/frontend 8501:8501 -n kagentic
-    ```
+    The frontend will be available at http://localhost:30501
 
 ## Detailed Setup
 
@@ -159,15 +156,16 @@ kubectl exec -it <tool-registry-pod> -n kagentic -- psql -U kagentic -d tool_reg
 3. **Load Docker images into kind**
     ```bash
     # After running ./build.sh, load the images into kind
-    kind load docker-image tool-registry:latest --name kagentic
-    kind load docker-image ai-agent:latest --name kagentic
-    kind load docker-image frontend:latest --name kagentic
-    kind load docker-image search-tool:latest --name kagentic
-    kind load docker-image calculator-tool:latest --name kagentic
+    kind load docker-image kagentic-base:latest --name kagentic
+    kind load docker-image kagentic-tool-registry:latest --name kagentic
+    kind load docker-image kagentic-ai-agent:latest --name kagentic
+    kind load docker-image kagentic-frontend:latest --name kagentic
+    kind load docker-image kagentic-search-tool:latest --name kagentic
+    kind load docker-image kagentic-calculator-tool:latest --name kagentic
     ```
 
 4. **Special Considerations for kind**
-    - Images must be loaded into the kind cluster after building
+    - Images must be loaded into kind cluster after building
     - Use NodePort or ClusterIP instead of LoadBalancer
     - Access services via localhost and mapped ports
     - For persistent storage, use local-path provisioner:
@@ -175,6 +173,9 @@ kubectl exec -it <tool-registry-pod> -n kagentic -- psql -U kagentic -d tool_reg
     kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/master/deploy/local-path-storage.yaml
     kubectl patch storageclass local-path -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
     ```
+
+5. **Access the Application**
+    The frontend will be available at http://localhost:30501
 
 ### Troubleshooting kind Setup
 

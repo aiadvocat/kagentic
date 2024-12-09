@@ -27,7 +27,8 @@ spec:
     spec:
       containers:
       - name: ai-agent
-        image: ai-agent:latest
+        image: docker.io/library/kagentic-ai-agent:latest
+        imagePullPolicy: IfNotPresent  
         ports:
         - containerPort: 5000
         env:

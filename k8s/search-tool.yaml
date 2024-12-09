@@ -36,7 +36,8 @@ spec:
     spec:
       containers:
       - name: search-tool
-        image: search-tool:latest
+        image: docker.io/library/kagentic-web-search-tool:latest
+        imagePullPolicy: IfNotPresent  
         ports:
         - containerPort: 5000
         env:

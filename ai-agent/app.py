@@ -6,10 +6,14 @@ import uuid
 import requests
 from functools import wraps
 from datetime import datetime
+import logging
 
 app = Flask(__name__)
 db = DatabaseManager()
 openai.api_key = os.getenv('OPENAI_API_KEY', 'your-api-key-here')
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 def retry_on_failure(max_retries=1):
     def decorator(func):
@@ -144,14 +148,24 @@ def get_final_response(user_message, assistant_message, tool_responses):
 @app.route('/api/health', methods=['GET'])
 def health_check():
     try:
-        # Test database connection
-        db.get_active_tools()
-        return jsonify({
+        logger.debug("Health check called")
+        status = {
             "status": "healthy",
-            "database": "connected",
             "timestamp": datetime.now().isoformat()
-        })
+        }
+
+        try:
+            logger.debug("Checking database connection")
+            db.get_active_tools()
+            status["database"] = "connected"
+            logger.debug("Database connection successful")
+        except Exception as e:
+            logger.error(f"Database connection failed: {e}")
+            status["database"] = f"error: {str(e)}"
+            
+        return jsonify(status)
     except Exception as e:
+        logger.error(f"Health check failed: {e}")
         return jsonify({
             "status": "unhealthy",
             "error": str(e),

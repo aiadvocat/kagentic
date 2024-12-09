@@ -39,7 +39,8 @@ spec:
     spec:
       containers:
       - name: postgres
-        image: tool-registry:latest
+        image: docker.io/library/tool-registry:latest
+        imagePullPolicy: IfNotPresent  
         ports:
         - containerPort: 5432
         env:

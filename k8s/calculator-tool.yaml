@@ -27,7 +27,8 @@ spec:
     spec:
       containers:
       - name: calculator-tool
-        image: calculator-tool:latest
+        image: docker.io/library/kagentic-calculator-tool:latest
+        imagePullPolicy: IfNotPresent  
         ports:
         - containerPort: 5000
         livenessProbe:

@@ -19,9 +19,10 @@ build_image() {
     
     echo -e "${YELLOW}Building ${service} image as ${full_image_name}...${NC}"
     
-    if docker build -t ${full_image_name} ./${service}; then
-        # Also tag as latest
+    if docker build -t ${full_image_name} -f ${service}/Dockerfile .; then
+        # Also tag as latest and for local use
         docker tag ${full_image_name} "${DOCKER_ID}/${PREFIX}-${image_name}:latest"
+        docker tag ${full_image_name} "${PREFIX}-${image_name}:latest"
         echo -e "${GREEN}Successfully built ${service}${NC}"
         return 0
     else
@@ -32,6 +33,7 @@ build_image() {
 
 # Array of services to build
 services=(
+    ".:base"  # Build base image first
     "tool-registry:tool-registry"
     "ai-agent:ai-agent"
     "frontend:frontend"
@@ -67,6 +69,8 @@ done
 echo
 if [ $failed -eq 0 ]; then
     echo -e "${GREEN}All images built successfully${NC}"
+    echo -e "${YELLOW}Cleaning up dangling images...${NC}"
+    docker image prune -f
     echo -e "\nImage list:"
     for service in "${services[@]}"; do
         IFS=':' read -r -a array <<< "$service"

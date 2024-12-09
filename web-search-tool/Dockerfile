@@ -1,10 +1,12 @@
-FROM python:3.9-slim
+FROM kagentic-base:latest
 
-WORKDIR /app
-
-COPY requirements.txt .
+# Copy requirements first
+COPY web-search-tool/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+# Copy service code
+COPY web-search-tool/ /app/web-search-tool/
 
+WORKDIR /app/web-search-tool
+ENV PYTHONPATH=/app
 CMD ["python", "app.py"] 

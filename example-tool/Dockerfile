@@ -1,10 +1,11 @@
-FROM python:3.9-slim
+FROM kagentic-base:latest
 
-WORKDIR /app
-
-COPY requirements.txt .
+# Copy requirements first
+COPY example-tool/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+# Copy service code
+COPY example-tool/ /app/example-tool/
 
+WORKDIR /app/example-tool
 CMD ["python", "app.py"] 
