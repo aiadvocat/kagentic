@@ -1,1 +1,21 @@
- 
+# Multi-node cluster with port mappings
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: kagentic
+nodes:
+- role: control-plane
+  kubeadmConfigPatches:
+  - |
+    kind: InitConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        node-labels: "ingress-ready=true"
+  extraPortMappings:
+  - containerPort: 30501  # Streamlit frontend (NodePort)
+    hostPort: 30501
+    protocol: TCP
+  - containerPort: 30500  # For debugging/direct API access
+    hostPort: 30500
+    protocol: TCP
+- role: worker
+- role: worker
