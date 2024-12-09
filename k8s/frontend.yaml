@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: kagentic
+spec:
+  ports:
+    - port: 8501
+      targetPort: 8501
+  selector:
+    app: frontend
+  type: LoadBalancer  # This makes it accessible from outside the cluster
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: kagentic
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+      - name: frontend
+        image: frontend:latest
+        ports:
+        - containerPort: 8501
+        - containerPort: 8502  # Health check port
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8502
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8502
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        env:
+        - name: STREAMLIT_SERVER_PORT
+          value: "8501"
+        - name: STREAMLIT_SERVER_ADDRESS
+          value: "0.0.0.0" 
