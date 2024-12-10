@@ -9,35 +9,6 @@ if 'messages' not in st.session_state:
 if 'session_id' not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())
 
-@st.cache_data(ttl=60)
-def health_check():
-    try:
-        # Test connection to AI Agent
-        response = requests.get('http://ai-agent:5000/api/health', timeout=5)
-        ai_agent_health = response.status_code == 200
-    except:
-        ai_agent_health = False
-    
-    return {
-        "status": "healthy" if ai_agent_health else "degraded",
-        "ai_agent_connected": ai_agent_health,
-        "timestamp": datetime.now().isoformat()
-    }
-
-def run_health_server():
-    from flask import Flask, jsonify
-    health_app = Flask(__name__)
-    
-    @health_app.route('/health')
-    def health():
-        status = health_check()
-        return jsonify(status), 200 if status["status"] == "healthy" else 503
-    
-    health_app.run(host='0.0.0.0', port=8502)
-
-# Start health check server
-threading.Thread(target=run_health_server, daemon=True).start()
-
 def send_message(message):
     try:
         response = requests.post(
@@ -60,22 +31,41 @@ st.title("🤖 Kagentic AI Assistant")
 # Chat interface
 st.markdown("""
 <style>
+/* General text color */
+.stMarkdown {
+    color: #31333F;
+}
+
 .user-message {
     background-color: #e6f3ff;
     padding: 15px;
     border-radius: 15px;
     margin: 5px 0;
+    color: #31333F;
 }
 .assistant-message {
     background-color: #f0f2f6;
     padding: 15px;
     border-radius: 15px;
     margin: 5px 0;
+    color: #31333F;
 }
 .timestamp {
     color: #666;
     font-size: 0.8em;
     margin-top: 5px;
+}
+
+/* Ensure text input and buttons have good contrast */
+.stTextArea textarea {
+    color: #31333F;
+    background-color: white;
+}
+
+/* Style the title */
+.stTitle {
+    color: #31333F;
+    font-weight: bold;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -99,7 +89,23 @@ for message in st.session_state.messages:
 
 # Input area
 with st.container():
-    message = st.text_area("Type your message:", key="message_input", height=100)
+    # Initialize the clear flag if it doesn't exist
+    if "clear_input" not in st.session_state:
+        st.session_state.clear_input = False
+
+    # Set default value based on clear flag
+    if st.session_state.clear_input:
+        st.session_state.clear_input = False
+        default_value = ""
+    else:
+        default_value = st.session_state.get("message_input_widget", "")
+
+    # Text input with default value
+    message = st.text_area("Type your message:", 
+                          value=default_value,
+                          key="message_input_widget", 
+                          height=100)
+    
     col1, col2 = st.columns([1, 5])
     
     with col1:
@@ -129,14 +135,15 @@ with st.container():
                     "timestamp": datetime.now().strftime("%H:%M:%S")
                 })
                 
-                # Clear input
-                st.session_state.message_input = ""
+                # Set clear flag
+                st.session_state.clear_input = True
                 st.experimental_rerun()
     
     with col2:
         if st.button("Clear Chat", use_container_width=True):
             st.session_state.messages = []
             st.session_state.session_id = str(uuid.uuid4())
+            st.session_state.clear_input = True
             st.experimental_rerun()
 
 # Display session ID in sidebar
@@ -144,10 +151,13 @@ with st.sidebar:
     st.markdown("### Session Information")
     st.code(f"Session ID: {st.session_state.session_id}")
     st.markdown("### System Status")
-    status = health_check()
-    if status["status"] == "healthy":
-        st.success("All Systems Operational")
-    else:
-        st.warning("Some Services Degraded")
-    with st.expander("Details"):
-        st.json(status) 
+    try:
+        response = requests.get('http://ai-agent:5000/api/health', timeout=5)
+        if response.status_code == 200:
+            st.success("All Systems Operational")
+        else:
+            st.warning("Some Services Degraded")
+        with st.expander("Details"):
+            st.json(response.json())
+    except:
+        st.error("Unable to connect to AI Agent") 

@@ -1,13 +1,4 @@
 apiVersion: v1
-kind: Secret
-metadata:
-  name: search-api-credentials
-  namespace: kagentic
-type: Opaque
-data:
-  search-api-key: <base64-encoded-api-key>
----
-apiVersion: v1
 kind: Service
 metadata:
   name: search-tool
@@ -36,7 +27,7 @@ spec:
     spec:
       containers:
       - name: search-tool
-        image: docker.io/library/kagentic-web-search-tool:latest
+        image: docker.io/library/kagentic-search-tool:latest
         imagePullPolicy: IfNotPresent  
         ports:
         - containerPort: 5000
@@ -50,5 +41,7 @@ spec:
           httpGet:
             path: /api/health
             port: 5000
-          initialDelaySeconds: 5
-          periodSeconds: 10 
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3 

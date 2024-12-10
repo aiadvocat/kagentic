@@ -7,13 +7,28 @@ import requests
 from functools import wraps
 from datetime import datetime
 import logging
+from werkzeug.middleware.proxy_fix import ProxyFix
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app)
+
+@app.before_request
+def log_request():
+    logger.info(f"Received {request.method} request to {request.path} from {request.remote_addr}")
+
+@app.after_request
+def log_response(response):
+    logger.info(f"Returning {response.status_code} to {request.remote_addr}")
+    return response
+
 db = DatabaseManager()
 openai.api_key = os.getenv('OPENAI_API_KEY', 'your-api-key-here')
-
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
 
 def retry_on_failure(max_retries=1):
     def decorator(func):
@@ -49,51 +64,65 @@ def register_tool():
     return jsonify({"tool_id": tool_id, "status": "registered"})
 
 @app.route('/api/chat', methods=['POST'])
-@retry_on_failure(max_retries=1)
-def process_chat():
-    data = request.json
-    if 'message' not in data:
-        return jsonify({"error": "Message is required"}), 400
-    
-    session_id = data.get('session_id', str(uuid.uuid4()))
-    db.create_session(session_id)
-    db.add_chat_message(session_id, data['message'], 'user')
-    
-    # Get available tools
-    tools = db.get_active_tools()
-    
-    # Create system message with available tools
-    system_message = create_system_message(tools)
-    
-    # Get response from OpenAI
-    response = openai.ChatCompletion.create(
-        model="gpt-4",
-        messages=[
-            {"role": "system", "content": system_message},
-            {"role": "user", "content": data['message']}
-        ]
-    )
-    
-    assistant_message = response.choices[0].message.content
-    
-    # Check if we need to use any tools
-    tool_responses = process_tool_calls(assistant_message, tools)
-    if tool_responses:
-        # If tools were used, get a final response incorporating their results
-        final_response = get_final_response(data['message'], assistant_message, tool_responses)
-        db.add_chat_message(session_id, final_response, 'assistant')
-        return jsonify({
-            "response": final_response,
-            "session_id": session_id,
-            "tools_used": True
-        })
-    
-    db.add_chat_message(session_id, assistant_message, 'assistant')
-    return jsonify({
-        "response": assistant_message,
-        "session_id": session_id,
-        "tools_used": False
-    })
+def chat():
+    try:
+        data = request.json
+        if not data or 'message' not in data:
+            return jsonify({"error": "No message provided"}), 400
+        
+        message = data['message']
+        session_id = data.get('session_id', str(uuid.uuid4()))
+        
+        logger.info(f"Processing chat request for session {session_id}")
+        
+        # Get available tools
+        tools = db.get_active_tools()
+        logger.info(f"Found {len(tools)} active tools")
+        for tool in tools:
+            logger.info(f"Available tool: {tool['name']} with capabilities: {tool['capabilities']}")
+        
+        # Process tool calls
+        tool_responses = process_tool_calls(message, tools)
+        if tool_responses:
+            logger.info("Tools used in response:")
+            for resp in tool_responses:
+                logger.info(f"- {resp['tool']}: {resp['response']}")
+        else:
+            logger.info("No tools were used for this request")
+        
+        # Create system message
+        system_message = create_system_message(tools)
+        
+        # Get initial response from OpenAI
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": message}
+            ]
+        )
+        assistant_message = response.choices[0].message.content
+        logger.info("Received initial response from OpenAI")
+        
+        # If tools were used, get final response
+        if tool_responses:
+            logger.info("Getting final response incorporating tool results")
+            final_response = get_final_response(message, assistant_message, tool_responses)
+        else:
+            logger.info("Using initial response (no tools used)")
+            final_response = assistant_message
+        
+        # Store chat history
+        db.create_session(session_id)
+        db.add_chat_message(session_id, message, "user")
+        db.add_chat_message(session_id, final_response, "assistant")
+        
+        logger.info("Chat request completed successfully")
+        return jsonify({"response": final_response})
+        
+    except Exception as e:
+        logger.error(f"Error processing chat request: {str(e)}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
 
 def create_system_message(tools):
     tool_descriptions = "\n".join([
@@ -112,19 +141,26 @@ def process_tool_calls(message, tools):
     # Simple keyword matching for tool selection
     tool_responses = []
     for tool in tools:
+        logger.debug(f"Checking if message matches capabilities of {tool['name']}")
         if any(cap.lower() in message.lower() for cap in tool['capabilities']):
+            logger.info(f"Message matches capabilities of {tool['name']}")
             try:
+                logger.debug(f"Calling {tool['name']} at {tool['endpoint_url']}")
                 response = requests.post(
                     tool['endpoint_url'],
                     json={"query": message},
                     timeout=5
                 )
                 if response.status_code == 200:
+                    logger.info(f"Successfully used {tool['name']}")
                     tool_responses.append({
                         "tool": tool['name'],
                         "response": response.json()
                     })
-            except requests.exceptions.RequestException:
+                else:
+                    logger.warning(f"Tool {tool['name']} returned status code {response.status_code}")
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Error calling {tool['name']}: {str(e)}")
                 continue
     return tool_responses
 
@@ -171,6 +207,19 @@ def health_check():
             "error": str(e),
             "timestamp": datetime.now().isoformat()
         }), 500
+
+@app.route('/api/tools/heartbeat', methods=['POST'])
+def tool_heartbeat():
+    try:
+        data = request.json
+        if not data or 'name' not in data:
+            return jsonify({"error": "Tool name is required"}), 400
+        
+        db.update_tool_heartbeat(data['name'])
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        logger.error(f"Error updating tool heartbeat: {e}")
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000) 

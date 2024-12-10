@@ -29,20 +29,129 @@ my-new-tool/
 └── requirements.txt
 ```
 
-2. Implement the required endpoints in app.py:
+2. Required dependencies in requirements.txt:
+```
+flask==2.0.1
+requests==2.26.0
+python-dotenv==0.19.0
+werkzeug==2.0.3  # Required for Flask compatibility
+psycopg2-binary==2.9.9  # Required for database connection
+sqlalchemy==1.4.23  # Required for shared database module
+```
+
+3. Implement the required endpoints in app.py:
 ```python
+import threading
+import time
+import logging
+from datetime import datetime
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 @app.route('/api/health', methods=['GET'])
 def health_check():
-    # Implement health check
-    return jsonify({"status": "healthy"})
+    try:
+        logger.info("Health check called")
+        # Verify your tool's core functionality
+        # Example: check configuration, test basic operation, etc.
+        if your_tool_is_healthy():
+            return jsonify({
+                "status": "healthy",
+                "timestamp": datetime.now().isoformat()
+            })
+        else:
+            logger.error("Health check failed")
+            return jsonify({
+                "status": "unhealthy",
+                "error": "Specific error message",
+                "timestamp": datetime.now().isoformat()
+            }), 500
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        return jsonify({
+            "status": "unhealthy",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }), 500
 
 @app.route('/api/<your-endpoint>', methods=['POST'])
 def your_tool_endpoint():
     # Implement your tool's functionality
     pass
+
+def register_with_agent():
+    while True:
+        try:
+            logger.info("Attempting to register with AI Agent...")
+            response = requests.post(
+                'http://ai-agent:5000/api/tools/register',
+                json={
+                    "name": "Your Tool Name",
+                    "description": "Description of what your tool does",
+                    "endpoint_url": "http://your-tool:5000/api/your-endpoint",
+                    "capabilities": ["list", "of", "capabilities"]
+                },
+                timeout=5
+            )
+            if response.status_code == 200:
+                logger.info("Successfully registered with AI Agent")
+                break
+            else:
+                logger.error(f"Registration failed with status code: {response.status_code}")
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to register with AI Agent: {e}")
+            time.sleep(10)  # Wait before retrying
+
+def send_heartbeat():
+    while True:
+        try:
+            logger.debug("Sending heartbeat...")
+            response = requests.post(
+                'http://ai-agent:5000/api/tools/heartbeat',
+                json={"name": "Your Tool Name"},
+                timeout=5
+            )
+            if response.status_code == 200:
+                logger.debug("Heartbeat successful")
+            else:
+                logger.warning(f"Heartbeat failed with status {response.status_code}")
+        except Exception as e:
+            logger.error(f"Error sending heartbeat: {e}")
+        time.sleep(60)  # Send heartbeat every minute
+
+if __name__ == '__main__':
+    # Start registration and heartbeat in separate threads
+    threading.Thread(target=register_with_agent, daemon=True).start()
+    threading.Thread(target=send_heartbeat, daemon=True).start()
+
+    app.run(host='0.0.0.0', port=5000)
 ```
 
-3. Register with the AI Agent:
+4. Create Dockerfile:
+```dockerfile
+FROM kagentic-base:latest
+
+# Copy requirements first
+COPY my-new-tool/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Set up shared module
+RUN mkdir -p /app/shared
+COPY shared/ /app/shared/
+
+# Copy service code
+COPY my-new-tool/ /app/my-new-tool/
+
+WORKDIR /app/my-new-tool
+ENV PYTHONPATH=/app
+CMD ["python", "app.py"]
+```
+
+5. Register with the AI Agent:
 ```python
 def register_with_agent():
     response = requests.post(
@@ -56,7 +165,7 @@ def register_with_agent():
     )
 ```
 
-4. Create Kubernetes deployment in k8s/your-tool.yaml:
+6. Create Kubernetes deployment in k8s/your-tool.yaml:
 ```yaml
 apiVersion: v1
 kind: Service
@@ -87,9 +196,16 @@ spec:
     spec:
       containers:
       - name: your-tool
-        image: your-tool:latest
+        image: docker.io/library/kagentic-your-tool:latest
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 5000
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 5000
+          initialDelaySeconds: 5
+          periodSeconds: 10
 ```
 
 ## Code Style
@@ -139,3 +255,14 @@ docker-compose up
 ## License
 
 By contributing, you agree that your contributions will be licensed under its MIT License. 
+
+### Tool Lifecycle
+Each tool must:
+1. Register with the AI Agent on startup
+2. Send regular heartbeats to maintain active status
+3. Implement a health check endpoint
+4. Handle graceful shutdown
+
+The heartbeat mechanism ensures that only active tools are available to the AI Agent. 
+If a tool fails to send a heartbeat for 5 minutes, it will be considered inactive and 
+won't be used for processing requests. 

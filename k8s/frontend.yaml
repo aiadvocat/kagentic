@@ -4,11 +4,11 @@ metadata:
   name: frontend
   namespace: kagentic
 spec:
-  type: NodePort  # Changed from LoadBalancer
+  type: NodePort
   ports:
     - port: 8501
       targetPort: 8501
-      nodePort: 30501  # Fixed nodePort for predictable access
+      nodePort: 30501
   selector:
     app: frontend
 ---
@@ -30,26 +30,28 @@ spec:
       containers:
       - name: frontend
         image: docker.io/library/kagentic-frontend:latest
-        imagePullPolicy: IfNotPresent  
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8501
-        - containerPort: 8502  # Health check port
         livenessProbe:
           httpGet:
-            path: /health
-            port: 8502
+            path: /_stcore/health
+            port: 8501
           initialDelaySeconds: 30
           periodSeconds: 30
           timeoutSeconds: 5
           failureThreshold: 3
         readinessProbe:
           httpGet:
-            path: /health
-            port: 8502
-          initialDelaySeconds: 15
+            path: /_stcore/health
+            port: 8501
+          initialDelaySeconds: 30
           periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 5
+          successThreshold: 1
         env:
         - name: STREAMLIT_SERVER_PORT
           value: "8501"
         - name: STREAMLIT_SERVER_ADDRESS
-          value: "0.0.0.0" 
+          value: "0.0.0.0"

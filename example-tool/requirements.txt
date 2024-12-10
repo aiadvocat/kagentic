@@ -1,3 +1,6 @@
 flask==2.0.1
 requests==2.26.0
-python-dotenv==0.19.0 
+python-dotenv==0.19.0
+werkzeug==2.0.3  # Pin to same version as ai-agent
+psycopg2-binary==2.9.9  # For database connection
+sqlalchemy==1.4.23  # Required for shared database module
