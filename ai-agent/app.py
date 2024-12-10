@@ -8,17 +8,32 @@ from functools import wraps
 from datetime import datetime
 import logging
 from werkzeug.middleware.proxy_fix import ProxyFix
-
+import torch
 from transformers import pipeline
-classifier = pipeline("zero-shot-classification", 
-                    model="valhalla/distilbart-mnli-12-1",
-                    hypothesis_template="This tool can perform the task: {}.")
 
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Check if MPS (Metal Performance Shaders) is available
+if torch.backends.mps.is_available():
+    logger.info("Using MPS (Apple Silicon GPU) device")
+    device = "mps"
+elif torch.cuda.is_available():
+    logger.info("Using CUDA device")
+    device = "cuda"
+else:
+    logger.info("Using CPU device")
+    device = "cpu"
+
+classifier = pipeline("zero-shot-classification", 
+                    model="valhalla/distilbart-mnli-12-1",
+                    hypothesis_template="This tool can perform the task: {}.",
+                    device=device)
+
+
 
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app)

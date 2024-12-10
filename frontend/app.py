@@ -42,18 +42,25 @@ st.markdown("""
     border-radius: 15px;
     margin: 5px 0;
     color: #31333F;
+    position: relative;
 }
+
 .assistant-message {
     background-color: #f0f2f6;
     padding: 15px;
     border-radius: 15px;
     margin: 5px 0;
     color: #31333F;
+    position: relative;
 }
+
 .timestamp {
     color: #666;
     font-size: 0.8em;
     margin-top: 5px;
+    position: absolute;
+    bottom: 5px;
+    right: 10px;
 }
 
 /* Ensure text input and buttons have good contrast */
@@ -72,17 +79,24 @@ st.markdown("""
 
 # Display chat messages
 for message in st.session_state.messages:
+    # Sanitize message content
+    content = message["content"].replace("<", "&lt;").replace(">", "&gt;")
+    # Replace newlines with <br> for proper HTML rendering
+    content = content.replace("\n", "<br>")
+    
     if message["role"] == "user":
         st.markdown(f"""
         <div class="user-message">
-            <strong>You:</strong><br>{message["content"].replace("<", "&lt;").replace(">", "&gt;")}
+            <strong>You:</strong><br>
+            <div style="margin-bottom: 20px;">{content}</div>
             <div class="timestamp">{message["timestamp"]}</div>
         </div>
         """, unsafe_allow_html=True)
     else:
         st.markdown(f"""
         <div class="assistant-message">
-            <strong>Assistant:</strong><br>{message["content"].replace("<", "&lt;").replace(">", "&gt;")}
+            <strong>Assistant:</strong><br>
+            <div style="margin-bottom: 20px;">{content}</div>
             <div class="timestamp">{message["timestamp"]}</div>
         </div>
         """, unsafe_allow_html=True)
