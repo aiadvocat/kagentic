@@ -75,14 +75,14 @@ for message in st.session_state.messages:
     if message["role"] == "user":
         st.markdown(f"""
         <div class="user-message">
-            <strong>You:</strong><br>{message["content"]}
+            <strong>You:</strong><br>{message["content"].replace("<", "&lt;").replace(">", "&gt;")}
             <div class="timestamp">{message["timestamp"]}</div>
         </div>
         """, unsafe_allow_html=True)
     else:
         st.markdown(f"""
         <div class="assistant-message">
-            <strong>Assistant:</strong><br>{message["content"]}
+            <strong>Assistant:</strong><br>{message["content"].replace("<", "&lt;").replace(">", "&gt;")}
             <div class="timestamp">{message["timestamp"]}</div>
         </div>
         """, unsafe_allow_html=True)
