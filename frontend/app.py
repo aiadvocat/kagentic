@@ -17,7 +17,7 @@ def send_message(message):
                 'message': message,
                 'session_id': st.session_state.session_id
             },
-            timeout=30
+            timeout=60
         )
         if response.status_code == 200:
             return response.json()

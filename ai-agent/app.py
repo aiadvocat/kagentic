@@ -9,6 +9,11 @@ from datetime import datetime
 import logging
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+from transformers import pipeline
+classifier = pipeline("zero-shot-classification", 
+                    model="valhalla/distilbart-mnli-12-1",
+                    hypothesis_template="This tool can perform the task: {}.")
+
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -138,30 +143,60 @@ If no tools are needed, respond directly to the user's query."""
 
 @retry_on_failure(max_retries=1)
 def process_tool_calls(message, tools):
-    # Simple keyword matching for tool selection
     tool_responses = []
+    candidate_labels = []
+    tool_map = {}
+    logger.info(f"Processing Tools {tools} with message {message}")
+    
+    # Build tool mapping
     for tool in tools:
-        logger.debug(f"Checking if message matches capabilities of {tool['name']}")
-        if any(cap.lower() in message.lower() for cap in tool['capabilities']):
-            logger.info(f"Message matches capabilities of {tool['name']}")
-            try:
-                logger.debug(f"Calling {tool['name']} at {tool['endpoint_url']}")
-                response = requests.post(
-                    tool['endpoint_url'],
-                    json={"query": message},
-                    timeout=5
-                )
-                if response.status_code == 200:
-                    logger.info(f"Successfully used {tool['name']}")
-                    tool_responses.append({
-                        "tool": tool['name'],
-                        "response": response.json()
-                    })
-                else:
-                    logger.warning(f"Tool {tool['name']} returned status code {response.status_code}")
-            except requests.exceptions.RequestException as e:
-                logger.error(f"Error calling {tool['name']}: {str(e)}")
-                continue
+        logger.info(f"Processing tool: {tool['name']}")
+        namedescription = f"{tool['name']}: {tool['description']}"
+        candidate_labels.append(namedescription)
+        tool_map[namedescription] = tool
+        for capability in tool["capabilities"]:
+            logger.info(f"Processing capability: {capability}")
+            candidate_labels.append(capability)
+            tool_map[capability] = tool    # Map capability to the full tool object
+
+    logger.info("Getting Classification Result")
+    try:
+        result = classifier(message, candidate_labels)   
+        logger.info(f"Classification result: {result}")
+    except Exception as e:
+        logger.error(f"Classification failed: {str(e)}", exc_info=True)
+        return tool_responses
+
+    # Get the highest scoring label and its score
+    top_label = result['labels'][0]
+    top_score = result['scores'][0]
+    logger.info(f"Top label: {top_label} with score: {top_score}")
+
+    # Only use tool if confidence is high enough
+    if top_score > 0.3 and top_label in tool_map:
+        selected_tool = tool_map[top_label]
+        logger.info(f"Selected tool: {selected_tool['name']} with confidence: {top_score}")
+        
+        try:
+            logger.info(f"Calling tool {selected_tool['name']} at {selected_tool['endpoint_url']}")
+            response = requests.post(
+                selected_tool['endpoint_url'],
+                json={"query": message},
+                timeout=5
+            )
+            if response.status_code == 200:
+                logger.info(f"Successfully used {selected_tool['name']}")
+                tool_responses.append({
+                    "tool": selected_tool['name'],
+                    "response": response.json()
+                })
+            else:
+                logger.warning(f"Tool {selected_tool['name']} returned status code {response.status_code}")
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error calling {selected_tool['name']}: {str(e)}")
+    else:
+        logger.info(f"No tool selected (top score: {top_score} for label: {top_label})")
+
     return tool_responses
 
 def get_final_response(user_message, assistant_message, tool_responses):

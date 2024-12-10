@@ -27,6 +27,13 @@ spec:
     spec:
       containers:
       - name: ai-agent
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "2500m"
         image: docker.io/library/kagentic-ai-agent:latest
         imagePullPolicy: IfNotPresent  
         ports:
