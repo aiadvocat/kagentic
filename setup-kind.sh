@@ -47,7 +47,17 @@ setup_cluster() {
     fi
 
     # Create new cluster
-    if kind create cluster --config kind-config.yaml; then
+    if kind create cluster --name kagentic --config=- <<'EOF'
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+  extraPortMappings:
+  - containerPort: 30501
+    hostPort: 30501
+    protocol: TCP
+EOF
+    then
         echo -e "${GREEN}Cluster created successfully!${NC}"
     else
         echo -e "${RED}Failed to create cluster${NC}"
@@ -73,11 +83,11 @@ build_and_load_images() {
 
     echo -e "${YELLOW}Loading images into kind cluster...${NC}"
     images=(
-        "tool-registry:latest"
-        "ai-agent:latest"
-        "frontend:latest"
-        "search-tool:latest"
-        "calculator-tool:latest"
+        "kagentic-tool-registry:latest"
+        "kagentic-ai-agent:latest"
+        "kagentic-frontend:latest"
+        "kagentic-search-tool:latest"
+        "kagentic-calculator-tool:latest"
     )
 
     for image in "${images[@]}"; do
@@ -148,3 +158,4 @@ To clean up:
 1. Delete cluster: kind delete cluster --name kagentic
 2. Remove images: docker rmi $(docker images 'kagentic/*' -q)
 """ 
+

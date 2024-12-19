@@ -19,7 +19,7 @@ build_image() {
     
     echo -e "${YELLOW}Building ${service} image as ${full_image_name}...${NC}"
     
-    if docker build -t ${full_image_name} -f ${service}/Dockerfile .; then
+    if docker build --load -t ${full_image_name} -f ${service}/Dockerfile .; then
         # Also tag as latest and for local use
         docker tag ${full_image_name} "${DOCKER_ID}/${PREFIX}-${image_name}:latest"
         docker tag ${full_image_name} "${PREFIX}-${image_name}:latest"

@@ -8,6 +8,8 @@ if 'messages' not in st.session_state:
     st.session_state.messages = []
 if 'session_id' not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())
+if 'processing' not in st.session_state:
+    st.session_state.processing = False
 
 def send_message(message):
     try:
@@ -26,141 +28,106 @@ def send_message(message):
     except requests.exceptions.RequestException as e:
         return {"error": str(e), "response": "Sorry, I'm having trouble connecting to the AI agent."}
 
-st.title("🤖 Kagentic AI Assistant")
-
-# Chat interface
 st.markdown("""
 <style>
-/* General text color */
-.stMarkdown {
-    color: #31333F;
+/* Hide Streamlit branding */
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+
+/* Chat container */
+[data-testid="stChatFlow"] {
+    padding-bottom: 80px;
 }
 
-.user-message {
-    background-color: #e6f3ff;
-    padding: 15px;
+/* Sticky chat input */
+section[data-testid="stChatInput"] {
+    position: fixed !important;
+    bottom: 0;
+    left: 250px;  /* Account for sidebar width */
+    right: 0;
+    background: white;
+    padding: 1rem 5rem;
+    z-index: 100;
+    border-top: 1px solid #ddd;
+}
+
+/* Message styling */
+[data-testid="stChatMessage"] {
+    background-color: #f0f2f6 !important;
     border-radius: 15px;
-    margin: 5px 0;
-    color: #31333F;
-    position: relative;
-}
-
-.assistant-message {
-    background-color: #f0f2f6;
     padding: 15px;
-    border-radius: 15px;
-    margin: 5px 0;
+    margin: 1rem 0;
     color: #31333F;
-    position: relative;
 }
 
-.timestamp {
-    color: #666;
+/* Set default text color for all elements inside chat messages */
+[data-testid="stChatMessage"] * {
+    color: #31333F !important;
+}
+
+/* Override color for specific elements that need different colors */
+[data-testid="stChatMessage"] .stMarkdown p {
     font-size: 0.8em;
+    color: #666 !important;
     margin-top: 5px;
-    position: absolute;
-    bottom: 5px;
-    right: 10px;
 }
 
-/* Ensure text input and buttons have good contrast */
-.stTextArea textarea {
-    color: #31333F;
-    background-color: white;
+[data-testid="stChatMessage"][data-testid*="user"] {
+    background-color: #e6f3ff !important;
 }
 
-/* Style the title */
-.stTitle {
-    color: #31333F;
-    font-weight: bold;
+/* List styling in messages */
+[data-testid="stChatMessage"] ol {
+    list-style-type: decimal;
+    margin: 0;
+    padding: 0;
+    counter-reset: item;
+}
+
+[data-testid="stChatMessage"] ul {
+    list-style-type: disc;
+    margin: 0;
+    padding: 0;
+}
+
+[data-testid="stChatMessage"] li {
+    margin: 0.5em 0;
+    padding: 0;
+    display: list-item;
+}
+
+/* Custom numbered list styling */
+[data-testid="stChatMessage"] ol > li {
+    list-style: none;
+    counter-increment: item;
+}
+
+[data-testid="stChatMessage"] ol > li:before {
+    content: counter(item) ". ";
+    display: inline-block;
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+}
+
+/* Custom bullet list styling */
+[data-testid="stChatMessage"] ul > li {
+    list-style: none;
+}
+
+[data-testid="stChatMessage"] ul > li:before {
+    content: "• ";
+    display: inline-block;
+    font-family: inherit;
+    font-size: inherit;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# Display chat messages
-for message in st.session_state.messages:
-    # Sanitize message content
-    content = message["content"].replace("<", "&lt;").replace(">", "&gt;")
-    # Replace newlines with <br> for proper HTML rendering
-    content = content.replace("\n", "<br>")
-    
-    if message["role"] == "user":
-        st.markdown(f"""
-        <div class="user-message">
-            <strong>You:</strong><br>
-            <div style="margin-bottom: 20px;">{content}</div>
-            <div class="timestamp">{message["timestamp"]}</div>
-        </div>
-        """, unsafe_allow_html=True)
-    else:
-        st.markdown(f"""
-        <div class="assistant-message">
-            <strong>Assistant:</strong><br>
-            <div style="margin-bottom: 20px;">{content}</div>
-            <div class="timestamp">{message["timestamp"]}</div>
-        </div>
-        """, unsafe_allow_html=True)
+# Title and sidebar
+st.title("🤖 Kagentic AI Assistant")
 
-# Input area
-with st.container():
-    # Initialize the clear flag if it doesn't exist
-    if "clear_input" not in st.session_state:
-        st.session_state.clear_input = False
-
-    # Set default value based on clear flag
-    if st.session_state.clear_input:
-        st.session_state.clear_input = False
-        default_value = ""
-    else:
-        default_value = st.session_state.get("message_input_widget", "")
-
-    # Text input with default value
-    message = st.text_area("Type your message:", 
-                          value=default_value,
-                          key="message_input_widget", 
-                          height=100)
-    
-    col1, col2 = st.columns([1, 5])
-    
-    with col1:
-        if st.button("Send", use_container_width=True):
-            if message:
-                # Add user message to chat
-                timestamp = datetime.now().strftime("%H:%M:%S")
-                st.session_state.messages.append({
-                    "role": "user",
-                    "content": message,
-                    "timestamp": timestamp
-                })
-                
-                # Get AI response
-                response = send_message(message)
-                
-                if "error" in response:
-                    st.error(response["error"])
-                    assistant_message = response["response"]
-                else:
-                    assistant_message = response["response"]
-                
-                # Add assistant response to chat
-                st.session_state.messages.append({
-                    "role": "assistant",
-                    "content": assistant_message,
-                    "timestamp": datetime.now().strftime("%H:%M:%S")
-                })
-                
-                # Set clear flag
-                st.session_state.clear_input = True
-                st.experimental_rerun()
-    
-    with col2:
-        if st.button("Clear Chat", use_container_width=True):
-            st.session_state.messages = []
-            st.session_state.session_id = str(uuid.uuid4())
-            st.session_state.clear_input = True
-            st.experimental_rerun()
-
-# Display session ID in sidebar
+# Sidebar content
 with st.sidebar:
     st.markdown("### Session Information")
     st.code(f"Session ID: {st.session_state.session_id}")
@@ -174,4 +141,57 @@ with st.sidebar:
         with st.expander("Details"):
             st.json(response.json())
     except:
-        st.error("Unable to connect to AI Agent") 
+        st.error("Unable to connect to AI Agent")
+    
+    if st.button("Clear Chat", use_container_width=True):
+        st.session_state.messages = []
+        st.session_state.session_id = str(uuid.uuid4())
+        st.experimental_rerun()
+
+# Display messages
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.write(message["content"])
+        st.caption(f"Time: {message['timestamp']}")
+
+# Chat input
+if prompt := st.chat_input("Type your message...", disabled=st.session_state.processing):
+    if not st.session_state.processing:
+        st.session_state.processing = True
+        
+        # Add user message
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        st.session_state.messages.append({
+            "role": "user",
+            "content": prompt,
+            "timestamp": timestamp
+        })
+        
+        # Show user message immediately
+        with st.chat_message("user"):
+            st.write(prompt)
+            st.caption(f"Time: {timestamp}")
+        
+        # Get AI response
+        with st.chat_message("assistant"):
+            with st.spinner("Thinking..."):
+                response = send_message(prompt)
+                
+                if "error" in response:
+                    st.error(response["error"])
+                    assistant_message = response["response"]
+                else:
+                    assistant_message = response["response"]
+                
+                st.write(assistant_message)
+                timestamp = datetime.now().strftime("%H:%M:%S")
+                st.caption(f"Time: {timestamp}")
+        
+        # Add assistant response to history
+        st.session_state.messages.append({
+            "role": "assistant",
+            "content": assistant_message,
+            "timestamp": timestamp
+        })
+        
+        st.session_state.processing = False 
